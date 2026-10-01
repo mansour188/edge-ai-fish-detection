@@ -9,6 +9,10 @@ Sonar echo + GPS → small on-device model → fish / no-fish with a model score
 ## ▶️ Demo video
 
 
+https://github.com/user-attachments/assets/dff2e4f1-6874-4af9-8334-ae121d396ab3
+
+
+
 ## The problem
 Small-scale fishing crews burn time and fuel searching open water without knowing if fish are there. Industrial fish finders are expensive and
 need cloud or ship electronics. There is no cheap, offline, GPS-tagged "is there fish here?" tool for small boats (our target: fishing vessels in Tunisia).
