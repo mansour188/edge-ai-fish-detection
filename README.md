@@ -1,16 +1,12 @@
 # 🐟 Edge AI Fish Detection
 
 **A low-cost, offline device that tells fishermen whether a spot shows signs of fish — in real time, on battery and solar power.**
-Sonar echo + GPS → small on-device model → fish / no-fish with a confidence score, logged on a map.
+Sonar echo + GPS → small on-device model → fish / no-fish with a model score, logged on a map.
 
 > **Trained on real sonar data.** The model is trained on real echosounder recordings (38 kHz, Gulf of California) from a published scientific dataset,
 > labeled by the dataset's authors — **not on synthetic data**. It has not yet been trained or tested on our own boat or sonar; that is the next funded step.
 
 ## ▶️ Demo video
-
-[![Watch the demo video](docs/dashboard.png)](demo.mp4)
-
-*Click the image to watch [`demo.mp4`](demo.mp4) (about 75 seconds): a real sonar recording replayed as a live stream through the model and the dashboard.*
 
 
 ## The problem
@@ -71,8 +67,6 @@ model/               trained Random Forest + config
 data/replay.npz      replayed real echograms (public dataset)
 Dockerfile, requirements.txt
 docs/TECHNICAL.md    full technical write-up: data, method, results, lessons
-docs/dashboard.png   screenshot
-demo.mp4             demo video (screen recording of the dashboard)
 ```
 The training pipeline (data preparation, leave-one-trawl-out test, depth-matched test) is described in [`docs/TECHNICAL.md`](docs/TECHNICAL.md).
 
