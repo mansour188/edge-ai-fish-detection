@@ -1,0 +1,58 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Edge AI Fish Detection — live demo</title>
+<style>
+:root{--bg:#0b1620;--card:#13222f;--tx:#e6eef5;--mut:#8aa0b2;--ok:#4ade80;--warn:#f59e0b}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--tx);font:14px system-ui,sans-serif}
+header{padding:14px 20px;display:flex;gap:14px;align-items:center;flex-wrap:wrap;border-bottom:1px solid #1f3342}
+h1{font-size:18px;margin:0}.badge{background:#1f3342;border-radius:99px;padding:3px 10px;color:var(--mut);font-size:12px}
+main{display:grid;grid-template-columns:2fr 1fr;gap:14px;padding:14px;max-width:1300px;margin:auto}
+@media(max-width:900px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border-radius:10px;padding:12px}h2{font-size:12px;color:var(--mut);margin:0 0 8px;text-transform:uppercase;letter-spacing:.06em}
+canvas{width:100%;display:block;background:#000;border-radius:6px}.row{display:flex;gap:8px}
+#big{font-size:44px;font-weight:700}.fish{color:var(--ok)}.no{color:var(--mut)}
+table{width:100%;border-collapse:collapse;font-size:12px}td,th{padding:3px 4px;text-align:left}th{color:var(--mut)}
+select,button,input{background:#1f3342;color:var(--tx);border:0;border-radius:6px;padding:6px 10px}
+footer{padding:10px 20px;color:var(--mut);font-size:12px;max-width:1300px;margin:auto}
+</style></head><body>
+<header><h1>🐟 Edge AI Fish Detection</h1><span class="badge">Replay of real public sonar data · simulated GPS</span>
+<span style="flex:1"></span>
+<label>Replay <select id="trawl"><option value="17">Trawl 17</option><option value="14">Trawl 14</option><option value="4">Trawl 4</option></select></label>
+<label>Speed <input id="speed" type="range" min="5" max="60" value="20"></label><button id="go">Restart</button></header>
+<main>
+<section class="card"><h2>Live echogram (depth ↓, time →) · green ▲ = fish detected</h2>
+<div class="row"><canvas id="eg" width="720" height="300" style="flex:1"></canvas><canvas id="pb" width="90" height="300" style="width:90px"></canvas></div>
+<h2 style="margin-top:12px">Fish probability over time</h2><canvas id="sp" width="720" height="90"></canvas></section>
+<aside style="display:grid;gap:14px;align-content:start">
+<div class="card"><h2>Decision</h2><div id="big" class="no">—</div><div id="dec" class="no">waiting for stream…</div>
+<div class="no" style="margin-top:6px">pings <b id="n">0</b> · detections <b id="nd">0</b> · server inference <b id="ms">–</b> ms</div></div>
+<div class="card"><h2>Boat track (GPS) — green = detections</h2><canvas id="mp" width="320" height="220"></canvas><div id="pos" class="no" style="margin-top:4px"></div></div>
+<div class="card"><h2>Detection log</h2><table><thead><tr><th>ping</th><th>lat</th><th>lon</th><th>score</th></tr></thead><tbody id="log"></tbody></table></div>
+</aside></main>
+<footer>Prototype. Echoes: public Gulf of California 38 kHz data, replayed as a live stream. Model: Random Forest, depth-matched training. GPS is simulated.
+Not validated on a boat — not for fishing decisions.</footer>
+<script>
+const $=id=>document.getElementById(id),eg=$('eg'),g=eg.getContext('2d'),pb=$('pb').getContext('2d'),sp=$('sp').getContext('2d'),mp=$('mp').getContext('2d');
+const SX=2,LUT=[...Array(256)].map((_,i)=>{const a=[[68,1,84],[59,82,139],[33,145,140],[94,201,98],[253,231,37]],f=i/255*4,k=Math.min(3,f|0),u=f-k;return a[k].map((c,j)=>c+(a[k+1][j]-c)*u)});
+let es,hist,pts,dets,H=1,nd=0;
+function start(){if(es)es.close();g.fillStyle='#000';g.fillRect(0,0,eg.width,eg.height);hist=[];pts=[];dets=[];nd=0;$('log').innerHTML='';
+ es=new EventSource(`/stream?trawl=${$('trawl').value}&speed=${$('speed').value}`);
+ es.onmessage=e=>draw(JSON.parse(e.data));es.addEventListener('end',()=>{es.close();$('dec').textContent='replay finished — press Restart'})}
+function draw(d){H=d.H;const raw=atob(d.cols),im=new ImageData(d.step,H);
+ for(let x=0;x<d.step;x++)for(let y=0;y<H;y++){const c=LUT[raw.charCodeAt(x*H+y)],p=(y*d.step+x)*4;im.data.set([c[0],c[1],c[2],255],p)}
+ const t=document.createElement('canvas');t.width=d.step;t.height=H;t.getContext('2d').putImageData(im,0,0);
+ const w=d.step*SX;g.drawImage(eg,-w,0);g.imageSmoothingEnabled=false;g.drawImage(t,0,0,d.step,H,eg.width-w,0,w,eg.height);
+ const sy=eg.height/H;if(d.bottom!=null){g.fillStyle='red';g.fillRect(eg.width-w,d.bottom*sy,w,2)}
+ if(d.fish){g.fillStyle='#4ade80';g.beginPath();const x=eg.width-6,y=d.row*sy;g.moveTo(x,y-7);g.lineTo(x+7,y+5);g.lineTo(x-7,y+5);g.fill()}
+ pb.fillStyle='#000';pb.fillRect(0,0,90,300);d.centers.forEach((r,i)=>{const p=d.probs[i];pb.fillStyle=p>=d.thr?'#4ade80':'#3b82f6';pb.fillRect(0,(r-8)*sy,p*90,16*sy)});
+ pb.strokeStyle='#f59e0b';pb.beginPath();pb.moveTo(d.thr*90,0);pb.lineTo(d.thr*90,300);pb.stroke();
+ hist.push(d.pmax);if(hist.length>240)hist.shift();sp.fillStyle='#000';sp.fillRect(0,0,720,90);sp.strokeStyle='#4ade80';sp.beginPath();
+ hist.forEach((v,i)=>{const x=i*3,y=88-v*86;i?sp.lineTo(x,y):sp.moveTo(x,y)});sp.stroke();sp.strokeStyle='#f59e0b';sp.beginPath();sp.moveTo(0,88-d.thr*86);sp.lineTo(720,88-d.thr*86);sp.stroke();
+ $('big').textContent=(d.pmax*100|0)+'%';$('big').className=d.fish?'fish':'no';$('dec').textContent=d.fish?'FISH DETECTED':'no fish';$('dec').className=d.fish?'fish':'no';
+ $('n').textContent=d.t;$('ms').textContent=d.ms;$('pos').textContent=`${d.lat.toFixed(5)}, ${d.lon.toFixed(5)}`;
+ pts.push([d.lon,d.lat,d.fish]);if(d.fish){nd++;$('nd').textContent=nd;if(d.t%16==0){const r=$('log').insertRow(0);r.innerHTML=`<td>${d.t}</td><td>${d.lat.toFixed(4)}</td><td>${d.lon.toFixed(4)}</td><td>${(d.pmax*100|0)}%</td>`;if($('log').rows.length>8)$('log').deleteRow(8)}}
+ map()}
+function map(){const xs=pts.map(p=>p[0]),ys=pts.map(p=>p[1]),x0=Math.min(...xs),x1=Math.max(...xs),y0=Math.min(...ys),y1=Math.max(...ys),s=Math.min(290/((x1-x0)||1e-6),190/((y1-y0)||1e-6));
+ mp.fillStyle='#000';mp.fillRect(0,0,320,220);const X=p=>15+(p[0]-x0)*s,Y=p=>205-(p[1]-y0)*s;mp.strokeStyle='#8aa0b2';mp.beginPath();pts.forEach((p,i)=>i?mp.lineTo(X(p),Y(p)):mp.moveTo(X(p),Y(p)));mp.stroke();
+ mp.fillStyle='#4ade80';pts.forEach(p=>{if(p[2])mp.fillRect(X(p)-2,Y(p)-2,4,4)})}
+$('go').onclick=start;$('trawl').onchange=start;$('speed').onchange=start;start();
+</script></body></html>
